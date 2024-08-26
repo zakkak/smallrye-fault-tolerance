@@ -56,7 +56,7 @@ public final class FallbackMethodCandidates {
 
             Method withoutExceptionParam = SecurityActions.findFallbackMethod(point.beanClass(),
                     guardedMethod.getDeclaringClass(), fallbackMethodName,
-                    guardedMethod.getGenericParameterTypes(), guardedMethod.getGenericReturnType());
+                    guardedMethod.getParameterTypes(), guardedMethod.getGenericReturnType());
             if (withoutExceptionParam != null) {
                 SecurityActions.setAccessible(withoutExceptionParam);
             }
@@ -65,7 +65,7 @@ public final class FallbackMethodCandidates {
             if (allowExceptionParam) {
                 withExceptionParam = SecurityActions.findFallbackMethodsWithExceptionParameter(point.beanClass(),
                         guardedMethod.getDeclaringClass(), fallbackMethodName,
-                        guardedMethod.getGenericParameterTypes(), guardedMethod.getGenericReturnType());
+                        guardedMethod.getParameterTypes(), guardedMethod.getGenericReturnType());
                 for (Method method : withExceptionParam) {
                     SecurityActions.setAccessible(method);
                 }

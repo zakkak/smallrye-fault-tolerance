@@ -145,10 +145,9 @@ final class SecurityActions {
         // this is to satisfy the specification, which says: fallback method must be on the same class, a superclass
         // or an implemented interface of the class which declares the annotated method
         //
-        // we fake this by checking that the matching method has the same name as one of the method declared on
-        // the declaring class or any of its superclasses or any of its implemented interfaces (this is actually
-        // quite precise, the only false positive would occur in presence of overloads)
-        Set<String> declaredMethodNames = findDeclaredMethodNames(declaringClass);
+        // we do this by checking that the matching method has the same name and parameter types as one of the method
+        // declared on the declaring class or any of its superclasses or any of its implemented interfaces
+        boolean methodDeclared = isMethodDeclared(declaringClass, name, expectedParameterTypes);
 
         Deque<ClassWithTypeMapping> worklist = new ArrayDeque<>();
         {
@@ -171,15 +170,20 @@ final class SecurityActions {
             Class<?> clazz = classWithTypeMapping.clazz;
             TypeMapping actualMapping = classWithTypeMapping.typeMapping;
 
-            Set<Method> methods = getMethodsFromClass(clazz, name, expectedParameterTypes, expectedReturnType,
-                    expectedExceptionParameter, declaringClass, actualMapping, expectedMapping);
-            for (Method method : methods) {
-                if (declaredMethodNames.contains(method.getName())) {
-                    result.add(method);
-                    if (!expectedExceptionParameter) {
-                        return result;
+            try {
+                Method method = clazz.getDeclaredMethod(name, typesToClasses(expectedParameterTypes));
+                if (isAccessibleFrom(method, declaringClass)
+                        && signaturesMatch(method, expectedParameterTypes, expectedReturnType, expectedExceptionParameter,
+                                actualMapping, expectedMapping)) {
+                    if (methodDeclared) {
+                        result.add(method);
+                        if (!expectedExceptionParameter) {
+                            return result;
+                        }
                     }
                 }
+            } catch (NoSuchMethodException e) {
+                // no such method, continue
             }
 
             for (int i = 0; i < clazz.getInterfaces().length; i++) {
@@ -193,50 +197,27 @@ final class SecurityActions {
         return result;
     }
 
-    private static Set<String> findDeclaredMethodNames(Class<?> declaringClass) {
-        Set<String> result = new HashSet<>();
-
-        Deque<Class<?>> worklist = new ArrayDeque<>();
-        worklist.add(declaringClass);
-        while (!worklist.isEmpty()) {
-            Class<?> clazz = worklist.removeFirst();
-            for (Method m : clazz.getDeclaredMethods()) {
-                result.add(m.getName());
-            }
-
-            if (clazz.getSuperclass() != null) {
-                worklist.add(clazz.getSuperclass());
-            }
-            Collections.addAll(worklist, clazz.getInterfaces());
+    private static boolean isMethodDeclared(Class<?> declaringClass, String name, Type[] expectedParameterTypes) {
+        try {
+            declaringClass.getDeclaredMethod(name, typesToClasses(expectedParameterTypes));
+        } catch (NoSuchMethodException e) {
+            return false;
         }
-
-        return result;
+        return true;
     }
 
-    /**
-     * Returns all methods that:
-     * <ul>
-     * <li>are declared directly on given {@code classToSearch},</li>
-     * <li>have given {@code name},</li>
-     * <li>have matching {@code parameterTypes},</li>
-     * <li>have matching {@code returnType},</li>
-     * <li>have an additional {@code exceptionParameter} if required,</li>
-     * <li>are accessible from given {@code guardedMethodDeclaringClass}.</li>
-     * </ul>
-     */
-    private static Set<Method> getMethodsFromClass(Class<?> classToSearch, String name, Type[] parameterTypes,
-            Type returnType, boolean exceptionParameter, Class<?> guardedMethodDeclaringClass,
-            TypeMapping actualMapping, TypeMapping expectedMapping) {
-        Set<Method> set = new HashSet<>();
-        for (Method method : classToSearch.getDeclaredMethods()) {
-            if (method.getName().equals(name)
-                    && isAccessibleFrom(method, guardedMethodDeclaringClass)
-                    && signaturesMatch(method, parameterTypes, returnType, exceptionParameter,
-                            actualMapping, expectedMapping)) {
-                set.add(method);
+    private static Class<?>[] typesToClasses(Type[] parameterTypes) {
+        Class<?>[] classes = new Class<?>[parameterTypes.length];
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Type type = parameterTypes[i];
+            if (type instanceof )
+            try {
+                classes[i] = Class.forName(type.getTypeName());
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("Parameter type " + type + " not found", e);
             }
         }
-        return set;
+        return classes;
     }
 
     private static boolean isAccessibleFrom(Method method, Class<?> guardedMethodDeclaringClass) {
